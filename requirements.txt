@@ -1,0 +1,6 @@
+gradio
+transformers
+torch
+protobuf
+presidio-analyzer
+detoxify

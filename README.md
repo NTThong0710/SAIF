@@ -5,7 +5,7 @@ colorFrom: gray
 colorTo: green
 sdk: gradio
 sdk_version: 5.25.2
-app_file: app.py
+app_file: saifguard_demo.py
 pinned: false
 license: mit
 ---
