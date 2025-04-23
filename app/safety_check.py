@@ -1,13 +1,9 @@
 from detoxify import Detoxify
-from transformers import AutoProcessor, AutoModelForImageClassification , ViTForImageClassification, ViTFeatureExtractor
+from transformers import AutoProcessor, AutoModelForImageClassification
 from PIL import Image
 import torch
 
 # ==== Load models ====
-# Load mô hình kiểm duyệt ảnh bạo lực
-violence_model = ViTForImageClassification.from_pretrained('jaranohaal/vit-base-violence-detection')
-violence_processor = ViTFeatureExtractor.from_pretrained('jaranohaal/vit-base-violence-detection')
-
 # Load mô hình kiểm duyệt văn bản
 detox_model = Detoxify('original')
 
@@ -27,31 +23,16 @@ def is_prompt_safe(prompt: str):
         return False, list(flagged.keys())
     return True, []
 
-# ==== Hàm kiểm duyệt Hình ảnh ====
+# ==== Hàm kiểm duyệt hình ảnh ====
 def is_image_safe(image: Image.Image):
-    reasons = []
-
-    # --- Kiểm tra NSFW ---
-    nsfw_inputs = image_processor(images=image, return_tensors="pt")
+    inputs = image_processor(images=image, return_tensors="pt")
     with torch.no_grad():
-        nsfw_outputs = image_model(**nsfw_inputs)
-    nsfw_logits = nsfw_outputs.logits
-    nsfw_pred = nsfw_logits.argmax(-1).item()
-    nsfw_label = image_model.config.id2label[nsfw_pred]
-    if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
-        reasons.append(f"Khiêu dâm ({nsfw_label})")
+        outputs = image_model(**inputs)
 
-    # --- Kiểm tra Bạo lực ---
-    violence_inputs = violence_processor(images=image, return_tensors="pt")
-    with torch.no_grad():
-        violence_outputs = violence_model(**violence_inputs)
-    violence_logits = violence_outputs.logits
-    violence_pred = violence_logits.argmax(-1).item()
-    violence_label = violence_model.config.id2label[violence_pred]
-    if violence_label.lower() in ["violence", "bloody", "weapon", "fight"]:
-        reasons.append(f"Bạo lực ({violence_label})")
+    logits = outputs.logits
+    predicted_class = logits.argmax(-1).item()
+    label = image_model.config.id2label[predicted_class]
 
-    # --- Kết quả ---
-    if reasons:
-        return False, reasons
-    return True, [f"An toàn ({nsfw_label}, {violence_label})"]
+    if label.lower() in ["porn", "hentai", "sexy"]:
+        return False, label
+    return True, label
