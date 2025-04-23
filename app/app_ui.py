@@ -1,8 +1,33 @@
 import gradio as gr
-from app.safety_check import is_prompt_safe, is_image_safe
+from app.safety_check import is_prompt_safe
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
+
+# === Nhận diện ảnh nhạy cảm ===
+from transformers import AutoProcessor, AutoModelForImageClassification
 from PIL import Image
+import torch
+
+# Tải model NSFW detector (có thể thay đổi model nếu muốn)
+model_id = "Falconsai/nsfw_image_detection"
+
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForImageClassification.from_pretrained(model_id)
+
+def check_image_nsfw(image: Image.Image):
+    labels = model.config.id2label.values()  # lấy nhãn từ config: safe, nsfw
+    inputs = processor(images=image, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
+
+    safe_prob = probs[0].item()
+    nsfw_prob = probs[1].item()
+
+    if nsfw_prob > safe_prob:
+        return f"🚨 Ảnh KHÔNG an toàn ({nsfw_prob * 100:.2f}%)"
+    else:
+        return f"✅ Ảnh an toàn ({safe_prob * 100:.2f}%)"
 
 # === Kiểm duyệt prompt ===
 def handle_prompt(prompt):
@@ -15,17 +40,9 @@ def handle_prompt(prompt):
     log_prompt(prompt, "OK", True, response)
     return "✅ Prompt an toàn", response
 
-# === Kiểm duyệt ảnh ===
-def check_image_safety(image: Image.Image):
-    safe, reasons = is_image_safe(image)
-    if safe:
-        return f"✅ Ảnh an toàn: {', '.join(reasons)}"
-    else:
-        return f"🚨 Ảnh KHÔNG an toàn: {', '.join(reasons)}"
-
 # === Giao diện ===
 with gr.Blocks(title="SAIFGuard") as demo:
-    gr.Markdown("## 🛡️ SAIFGuard")
+    gr.Markdown("## 🛡️ SAIFGuard: GenAI Prompt & Image Safety Checker")
     
     with gr.Tab("📝 Kiểm duyệt Prompt"):
         prompt_input = gr.Textbox(label="Nhập Prompt")
@@ -38,6 +55,4 @@ with gr.Blocks(title="SAIFGuard") as demo:
         image_input = gr.Image(type="pil", label="Tải ảnh lên")
         image_output = gr.Textbox(label="Trạng thái kiểm duyệt hình ảnh")
         image_button = gr.Button("Kiểm tra Hình ảnh")
-        image_button.click(fn=check_image_safety, inputs=image_input, outputs=image_output)
-
-demo.launch()
+        image_button.click(fn=check_image_nsfw, inputs=image_input, outputs=image_output)
