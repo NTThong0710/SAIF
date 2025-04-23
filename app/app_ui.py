@@ -31,6 +31,12 @@ def check_image_nsfw(image: Image.Image):
 
 # === Kiểm duyệt prompt ===
 def handle_prompt(prompt):
+    safe, info = is_prompt_safe(prompt)
+    if not safe:
+        log_prompt(prompt, info, False, "")
+        return f"🚨 Prompt không an toàn! Phát hiện: {', '.join(info)}", ""
+    
+    response = generate_response(prompt)
     log_prompt(prompt, "OK", True, response)
     return "✅ Prompt an toàn", response
     
