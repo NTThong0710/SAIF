@@ -35,7 +35,12 @@ def handle_prompt(prompt):
     return "✅ Prompt an toàn", response
     
 # === Giao diện ===
-with gr.Blocks(title="SAIFGuard") as demo:
+with gr.Blocks(title="SAIFGuard - GENAI HỖ TRỢ PHÁT HIỆN PROMPT & IMAGE KHÔNG AN TOÀN", css="""
+.yellow-btn {
+    background-color: #FFD700 !important;
+    color: black !important;
+}
+""") as demo:
     gr.Markdown("## 🛡️ SAIFGuard: GenAI Prompt & Image Safety Checker")
     
     with gr.Tab("📝 Kiểm duyệt Prompt"):
@@ -64,13 +69,3 @@ with gr.Blocks(title="SAIFGuard") as demo:
                 image_input = gr.Image(type="pil", label="Tải ảnh lên")
                 
         image_button.click(fn=check_image_nsfw, inputs=image_input, outputs=image_output)
-
-# Thêm CSS để tạo nút màu vàng
-css = """
-.yellow-btn {
-    background-color: #FFD700 !important;
-    color: black !important;
-}
-"""
-
-demo = gr.Blocks(css=css)
