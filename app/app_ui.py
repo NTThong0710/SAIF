@@ -1,3 +1,40 @@
+import gradio as gr
+from app.safety_check import is_prompt_safe
+from app.gen_ai import generate_response
+from app.mlops_logger import log_prompt
+
+# === Nhận diện ảnh nhạy cảm ===
+from transformers import AutoProcessor, AutoModelForImageClassification
+from PIL import Image
+import torch
+
+# Tải model NSFW detector (có thể thay đổi model nếu muốn)
+model_id = "Falconsai/nsfw_image_detection"
+
+processor = AutoProcessor.from_pretrained(model_id)
+model = AutoModelForImageClassification.from_pretrained(model_id)
+
+def check_image_nsfw(image: Image.Image):
+    labels = model.config.id2label.values()  # lấy nhãn từ config: safe, nsfw
+    inputs = processor(images=image, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+        probs = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
+
+    safe_prob = probs[0].item()
+    nsfw_prob = probs[1].item()
+
+    if nsfw_prob > safe_prob:
+        return f"🚨 Ảnh KHÔNG an toàn ({nsfw_prob * 100:.2f}%)"
+    else:
+        return f"✅ Ảnh an toàn ({safe_prob * 100:.2f}%)"
+
+# === Kiểm duyệt prompt ===
+def handle_prompt(prompt):
+    log_prompt(prompt, "OK", True, response)
+    return "✅ Prompt an toàn", response
+    
+# === Giao diện ===
 with gr.Blocks(title="SAIFGuard") as demo:
     gr.Markdown("## 🛡️ SAIFGuard: GenAI Prompt & Image Safety Checker")
     
