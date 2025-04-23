@@ -4,3 +4,4 @@ torch
 protobuf
 presidio-analyzer
 detoxify
+Pillow
