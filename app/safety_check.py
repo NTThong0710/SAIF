@@ -27,7 +27,7 @@ def is_prompt_safe(prompt: str):
 
 
 # ==== Kiểm duyệt hình ảnh ====
-def is_image_safe(image: Image.Image):
+def is_image_safe(image: Image.Image, violence_threshold=0.5):
     reasons = []
     # --- NSFW detection ---
     nsfw_inputs = nsfw_processor(images=image, return_tensors="pt")
@@ -41,11 +41,14 @@ def is_image_safe(image: Image.Image):
     violence_inputs = violence_processor(images=image, return_tensors="pt")
     with torch.no_grad():
         violence_outputs = violence_model(**violence_inputs)
-    violence_label = violence_model.config.id2label[violence_outputs.logits.argmax(-1).item()].lower()
-    if violence_label in ["violent", "violence"]:
-        reasons.append("bạo lực")
+    violence_label_index = violence_outputs.logits.argmax(-1).item()
+    violence_score = torch.nn.functional.softmax(violence_outputs.logits, dim=-1)[0][violence_label_index].item()
+
+    if violence_label_index == violence_model.config.label2id["violent"] and violence_score > violence_threshold:
+        reasons.append(f"bạo lực (confidence: {violence_score:.2f})")
 
     if reasons:
         return False, f"❌ Không an toàn: {', '.join(reasons)}"
     else:
         return True, "✅ Hình ảnh an toàn"
+

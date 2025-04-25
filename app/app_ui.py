@@ -57,7 +57,7 @@ def check_image_safe(image: Image.Image):
     if reasons:
         result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
     else:
-        result_text = f"✅ Ảnh an toàn NSFW: ({nsfw_score:.2f}%)\n- Violence: ({violence_score:.2f}%)"
+        result_text = f"✅ Ảnh an toàn \n - NSFW: ({nsfw_score:.2f}%)\n- Violence: ({violence_score:.2f}%)"
 
     return result_text
 
