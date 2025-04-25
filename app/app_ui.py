@@ -97,7 +97,3 @@ with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css=
                 image_output = gr.Textbox(label="Trạng thái kiểm duyệt hình ảnh")
                 image_button = gr.Button("Kiểm tra Hình ảnh", elem_classes="yellow-btn")
         image_button.click(fn=check_image_safe, inputs=image_input, outputs=image_output)
-
-![image/png](https://cdn-uploads.huggingface.co/production/uploads/680024282ccac4d008d85452/Jib4bEap-0CDCUKKrrLM1.png)
-
-![image/png](https://cdn-uploads.huggingface.co/production/uploads/680024282ccac4d008d85452/ELhjI7KEEOjn6OgH24LfH.png)
