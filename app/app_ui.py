@@ -10,6 +10,9 @@ from transformers import AutoProcessor, AutoModelForImageClassification, ViTForI
 from PIL import Image
 import torch
 
+# Load model kiểm duyệt văn bản độc hại
+detox_model = Detoxify('original')
+
 # Load NSFW detector
 nsfw_model_id = "Falconsai/nsfw_image_detection"
 nsfw_processor = AutoProcessor.from_pretrained(nsfw_model_id)
