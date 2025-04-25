@@ -3,33 +3,65 @@ from app.safety_check import is_prompt_safe
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
 
-# === Nhận diện ảnh nhạy cảm ===
-from transformers import AutoProcessor, AutoModelForImageClassification
+# === Kiểm duyệt ảnh: NSFW + Violence ===
+from transformers import AutoProcessor, AutoModelForImageClassification, ViTForImageClassification, ViTFeatureExtractor
 from PIL import Image
 import torch
 
-# Tải model NSFW detector (có thể thay đổi model nếu muốn)
-model_id = "Falconsai/nsfw_image_detection"
+# Load NSFW detector
+nsfw_model_id = "Falconsai/nsfw_image_detection"
+nsfw_processor = AutoProcessor.from_pretrained(nsfw_model_id)
+nsfw_model = AutoModelForImageClassification.from_pretrained(nsfw_model_id)
 
-processor = AutoProcessor.from_pretrained(model_id)
-model = AutoModelForImageClassification.from_pretrained(model_id)
+# Load Violence detector
+violence_model_id = "jaranohaal/vit-base-violence-detection"
+violence_model = ViTForImageClassification.from_pretrained(violence_model_id)
+violence_processor = ViTFeatureExtractor.from_pretrained(violence_model_id)
 
-def check_image_nsfw(image: Image.Image):
-    labels = model.config.id2label.values()  # lấy nhãn từ config: safe, nsfw
-    inputs = processor(images=image, return_tensors="pt")
+def check_image_safe(image: Image.Image):
+    reasons = []
+    result_text = ""
+
+    # === NSFW Check ===
+    nsfw_inputs = nsfw_processor(images=image, return_tensors="pt")
     with torch.no_grad():
-        outputs = model(**inputs)
-        probs = torch.nn.functional.softmax(outputs.logits, dim=1)[0]
+        nsfw_outputs = nsfw_model(**nsfw_inputs)
+        nsfw_probs = torch.nn.functional.softmax(nsfw_outputs.logits, dim=1)[0]
 
-    safe_prob = probs[0].item()
-    nsfw_prob = probs[1].item()
+    nsfw_labels = list(nsfw_model.config.id2label.values())
+    nsfw_confidences = {label: nsfw_probs[i].item() * 100 for i, label in enumerate(nsfw_labels)}
+    nsfw_pred = nsfw_probs.argmax().item()
+    nsfw_label = nsfw_labels[nsfw_pred]
+    nsfw_score = nsfw_confidences[nsfw_label]
 
-    if nsfw_prob > safe_prob:
-        return f"🚨 Ảnh KHÔNG an toàn ({nsfw_prob * 100:.2f}%)"
+    if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
+        reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}%)")
+
+    # === Violence Check ===
+    violence_inputs = violence_processor(images=image, return_tensors="pt")
+    with torch.no_grad():
+        violence_outputs = violence_model(**violence_inputs)
+        violence_logits = violence_outputs.logits
+        violence_probs = torch.nn.functional.softmax(violence_logits, dim=1)[0]
+
+    violence_labels = list(violence_model.config.id2label.values())
+    violence_confidences = {label: violence_probs[i].item() * 100 for i, label in enumerate(violence_labels)}
+    violence_pred = violence_probs.argmax().item()
+    violence_label = violence_labels[violence_pred]
+    violence_score = violence_confidences[violence_label]
+
+    if violence_label.lower() == "violent":
+        reasons.append(f"Ảnh chứa bạo lực ({violence_score:.2f}%)")
+
+    # === Tổng kết ===
+    if reasons:
+        result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
     else:
-        return f"✅ Ảnh an toàn ({safe_prob * 100:.2f}%)"
+        result_text = f"✅ Ảnh an toàn NSFW: ({nsfw_score:.2f}%)\n- Violence: ({violence_score:.2f}%)"
 
-# === Kiểm duyệt prompt ===
+    return result_text
+
+# === Prompt Handling ===
 def handle_prompt(prompt):
     safe, info = is_prompt_safe(prompt)
     if not safe:
@@ -39,37 +71,31 @@ def handle_prompt(prompt):
     response = generate_response(prompt)
     log_prompt(prompt, "OK", True, response)
     return "✅ Prompt an toàn", response
-    
+
 # === Giao diện ===
-with gr.Blocks(title="SAIFGuard - GENAI HỖ TRỢ PHÁT HIỆN PROMPT & IMAGE KHÔNG AN TOÀN", css="""
+with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css="""
 .yellow-btn {
     background-color: #FFD700 !important;
     color: black !important;
 }
 """) as demo:
-    gr.Markdown("## 🛡️ SAIFGuard: GenAI Prompt & Image Safety Checker")
+    gr.Markdown("## 🛡️ SAIFGuard: HỆ THỐNG KIỂM DUYỆT THÔNG MINH")
     
     with gr.Tab("📝 Kiểm duyệt Prompt"):
         with gr.Row():
             with gr.Column(scale=1):
                 prompt_input = gr.Textbox(label="Nhập Prompt", lines=2)
-                
             with gr.Column(scale=1):
                 prompt_status = gr.Textbox(label="Trạng thái kiểm duyệt")
                 prompt_output = gr.Textbox(label="Kết quả GenAI")
                 prompt_button = gr.Button("Kiểm tra Prompt", elem_classes="yellow-btn")
-            
-        
         prompt_button.click(handle_prompt, inputs=prompt_input, outputs=[prompt_status, prompt_output])
     
     with gr.Tab("🖼️ Kiểm duyệt Hình ảnh"):
         with gr.Row():
-            # Cột bên trái
             with gr.Column(scale=1):
                 image_input = gr.Image(type="pil", label="Tải ảnh lên")
-            # Trái
             with gr.Column(scale=1):
                 image_output = gr.Textbox(label="Trạng thái kiểm duyệt hình ảnh")
                 image_button = gr.Button("Kiểm tra Hình ảnh", elem_classes="yellow-btn")
-                
-        image_button.click(fn=check_image_nsfw, inputs=image_input, outputs=image_output)
+        image_button.click(fn=check_image_safe, inputs=image_input, outputs=image_output)
