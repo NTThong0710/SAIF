@@ -5,13 +5,14 @@ from app.safety_check import check_image_safe, is_prompt_safe
 
 # === Kiểm duyệt Prompt ===
 def handle_prompt(prompt):
-    is_safe, reasons = is_prompt_safe(prompt)
-    if not is_safe:
-        return f"❌ Prompt không an toàn: {', '.join(reasons)}", ""
-    else:
-        log_prompt(prompt)
-        response = generate_response(prompt)
-        return "✅ Prompt an toàn", response
+    safe, info = is_prompt_safe(prompt)
+    if not safe:
+        log_prompt(prompt, info, False, "")
+        return f"🚨 Prompt không an toàn! Phát hiện: {', '.join(info)}", ""
+    
+    response = generate_response(prompt)
+    log_prompt(prompt, "OK", True, response)
+    return "✅ Prompt an toàn", response
 
 # === Giao diện ===
 with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css="""
