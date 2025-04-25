@@ -34,7 +34,7 @@ def check_image_safe(image: Image.Image):
     nsfw_label = nsfw_labels[nsfw_pred]
     nsfw_score = nsfw_probs[nsfw_pred].item() * 100
 
-    if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
+    if nsfw_label.lower() in ["porn","hentai","sex","nsfw"]:
         return f"🚨 Ảnh KHÔNG an toàn:\n- Ảnh nhạy cảm ({nsfw_score:.2f}%)"
 
     # Violence Check (chỉ chạy nếu ảnh không nhạy cảm)
