@@ -39,6 +39,7 @@ def check_image_safe(image: Image.Image):
 
     if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
         reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}%)")
+        return f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
 
     # Violence Check
     violence_inputs = violence_processor(images=image, return_tensors="pt")
