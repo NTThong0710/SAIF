@@ -18,7 +18,8 @@ violence_model_id = "jaranohaal/vit-base-violence-detection"
 violence_model = ViTForImageClassification.from_pretrained(violence_model_id)
 violence_processor = ViTFeatureExtractor.from_pretrained(violence_model_id)
 
-def check_image_safe(image: Image.Image):
+# ==== Kiểm duyệt hình ảnh (image) ====
+def check_image_safe(image: Image.Image, violence_threshold=0.5):
     reasons = []
     result_text = ""
 
@@ -50,7 +51,7 @@ def check_image_safe(image: Image.Image):
     violence_label = violence_labels[violence_pred]
     violence_score = violence_confidences[violence_label]
 
-    if violence_label.lower() == "violent":
+    if violence_label.lower() == "violent" and violence_score > violence_threshold * 100:
         reasons.append(f"Ảnh chứa bạo lực ({violence_score:.2f}%)")
 
     # === Tổng kết ===
