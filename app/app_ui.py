@@ -29,14 +29,13 @@ def check_image_safe(image: Image.Image):
         nsfw_probs = torch.nn.functional.softmax(nsfw_outputs.logits, dim=1)[0]
 
     nsfw_labels = list(nsfw_model.config.id2label.values())
-    nsfw_confidences = {label: nsfw_probs[i].item() for i, label in enumerate(nsfw_labels)}
     nsfw_pred = nsfw_probs.argmax().item()
-    nsfw_label = nsfw_labels[nsfw_pred]
-    nsfw_score = nsfw_confidences[nsfw_label] * 100  # Convert to percentage
+    nsfw_label = nsfw_labels[nsfw_pred] 
 
     # Điều kiện nghiêm ngặt hơn
-    if nsfw_label.lower() in ["porn", "hentai", "sexy"] and nsfw_score > 55:
+    if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
         reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}% - {nsfw_label})")
+        result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
 
     # === Violence Check ===
     violence_inputs = violence_processor(images=image, return_tensors="pt")
@@ -51,13 +50,12 @@ def check_image_safe(image: Image.Image):
     violence_label = violence_labels[violence_pred]
     violence_score = violence_confidences[violence_label] * 100  # Convert to percentage
 
-    if violence_label.lower() == "violent" and violence_score > 50:
+    if violence_label.lower() == "LABEL_1" and violence_score > 50:
         reasons.append(f"Ảnh chứa bạo lực ({violence_score:.2f}%)")
+        result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
 
     # === Tổng kết ===
-    if reasons:
-        result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
-    else:
+    if not reasons:
         result_text = f"✅ Ảnh an toàn \n - NSFW: {nsfw_label} ({nsfw_score:.2f}%)\n- Violence: {violence_label} ({violence_score:.2f}%)"
 
     return result_text
