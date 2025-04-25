@@ -1,38 +1,51 @@
 from detoxify import Detoxify
-from transformers import AutoProcessor, AutoModelForImageClassification
+from transformers import AutoProcessor, AutoModelForImageClassification, ViTForImageClassification, ViTFeatureExtractor
 from PIL import Image
 import torch
 
 # ==== Load models ====
-# Load mô hình kiểm duyệt văn bản
+# Load model kiểm duyệt văn bản độc hại
 detox_model = Detoxify('original')
 
-# Load mô hình kiểm duyệt ảnh
-image_processor = AutoProcessor.from_pretrained("Falconsai/nsfw_image_detection")
-image_model = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection")
+# Load model ảnh nhạy cảm (NSFW)
+nsfw_processor = AutoProcessor.from_pretrained("Falconsai/nsfw_image_detection")
+nsfw_model = AutoModelForImageClassification.from_pretrained("Falconsai/nsfw_image_detection")
 
-# ==== Hàm kiểm duyệt prompt ====
+# Load model bạo lực (Violence Detection)
+violence_model = ViTForImageClassification.from_pretrained('jaranohaal/vit-base-violence-detection')
+violence_processor = ViTFeatureExtractor.from_pretrained('jaranohaal/vit-base-violence-detection')
+
+
+# ==== Kiểm duyệt prompt ====
 def is_prompt_safe(prompt: str):
     results = detox_model.predict(prompt)
-    
-    # Nếu bất kỳ chỉ số độc hại nào > 0.5 thì xem là không an toàn
     threshold = 0.5
     flagged = {label: score for label, score in results.items() if score > threshold}
-    
     if flagged:
         return False, list(flagged.keys())
     return True, []
 
-# ==== Hàm kiểm duyệt hình ảnh ====
+
+# ==== Kiểm duyệt hình ảnh ====
 def is_image_safe(image: Image.Image):
-    inputs = image_processor(images=image, return_tensors="pt")
+    reasons = []
+    # --- NSFW detection ---
+    nsfw_inputs = nsfw_processor(images=image, return_tensors="pt")
     with torch.no_grad():
-        outputs = image_model(**inputs)
+        nsfw_outputs = nsfw_model(**nsfw_inputs)
+    nsfw_label = nsfw_model.config.id2label[nsfw_outputs.logits.argmax(-1).item()].lower()
+    if nsfw_label in ["porn", "hentai", "sexy"]:
+        reasons.append("nhạy cảm")
 
-    logits = outputs.logits
-    predicted_class = logits.argmax(-1).item()
-    label = image_model.config.id2label[predicted_class]
+    # --- Violence detection ---
+    violence_inputs = violence_processor(images=image, return_tensors="pt")
+    with torch.no_grad():
+        violence_outputs = violence_model(**violence_inputs)
+    violence_label = violence_model.config.id2label[violence_outputs.logits.argmax(-1).item()].lower()
+    if violence_label in ["violent", "violence"]:
+        reasons.append("bạo lực")
 
-    if label.lower() in ["porn", "hentai", "sexy"]:
-        return False, label
-    return True, label
+    if reasons:
+        return False, f"❌ Không an toàn: {', '.join(reasons)}"
+    else:
+        return True, "✅ Hình ảnh an toàn"
