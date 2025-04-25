@@ -2,6 +2,9 @@ import gradio as gr
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
 
+# === Kiểm duyệt prompt ===
+from detoxify import Detoxify
+
 # === Kiểm duyệt ảnh: NSFW + Violence ===
 from transformers import AutoProcessor, AutoModelForImageClassification, ViTForImageClassification, ViTFeatureExtractor
 from PIL import Image
@@ -28,12 +31,9 @@ def check_image_safe(image: Image.Image):
         nsfw_probs = torch.nn.functional.softmax(nsfw_outputs.logits, dim=1)[0]
 
     nsfw_labels = list(nsfw_model.config.id2label.values())
-    nsfw_confidences = {label: nsfw_probs[i].item() for i, label in enumerate(nsfw_labels)}
     nsfw_pred = nsfw_probs.argmax().item()
     nsfw_label = nsfw_labels[nsfw_pred]
-    nsfw_score = nsfw_confidences[nsfw_label] * 100  # Convert to percentage
 
-    # Kiểm tra NSFW với ngưỡng confidence
     if nsfw_label.lower() in ["porn", "hentai", "sexy"] and nsfw_score > 55:
         reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}% - {nsfw_label})")
 
@@ -59,16 +59,14 @@ def check_image_safe(image: Image.Image):
     else:
         return f"✅ Ảnh an toàn\n- NSFW: {nsfw_label} ({nsfw_score:.2f}%)\n- Violence: {violence_label} ({violence_score:.2f}%)"
 
-# === Prompt Handling ===
-def handle_prompt(prompt):
-    safe, info = is_prompt_safe(prompt)
-    if not safe:
-        log_prompt(prompt, info, False, "")
-        return f"🚨 Prompt không an toàn! Phát hiện: {', '.join(info)}", ""
-    
-    response = generate_response(prompt)
-    log_prompt(prompt, "OK", True, response)
-    return "✅ Prompt an toàn", response
+# === Kiểm duyệt Prompt ===
+def is_prompt_safe(prompt: str):
+    results = detox_model.predict(prompt)
+    threshold = 0.5
+    flagged = {label: score for label, score in results.items() if score > threshold}
+    if flagged:
+        return False, list(flagged.keys())
+    return True, []
 
 # === Giao diện ===
 with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css="""
