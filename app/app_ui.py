@@ -19,7 +19,7 @@ violence_model = ViTForImageClassification.from_pretrained(violence_model_id)
 violence_processor = ViTFeatureExtractor.from_pretrained(violence_model_id)
 
 # ==== Kiểm duyệt hình ảnh (image) ====
-def check_image_safe(image: Image.Image, violence_threshold=0.5):
+def check_image_safe(image: Image.Image):
     reasons = []
     result_text = ""
 
@@ -30,13 +30,14 @@ def check_image_safe(image: Image.Image, violence_threshold=0.5):
         nsfw_probs = torch.nn.functional.softmax(nsfw_outputs.logits, dim=1)[0]
 
     nsfw_labels = list(nsfw_model.config.id2label.values())
-    nsfw_confidences = {label: nsfw_probs[i].item() * 100 for i, label in enumerate(nsfw_labels)}
+    nsfw_confidences = {label: nsfw_probs[i].item() for i, label in enumerate(nsfw_labels)}
     nsfw_pred = nsfw_probs.argmax().item()
     nsfw_label = nsfw_labels[nsfw_pred]
-    nsfw_score = nsfw_confidences[nsfw_label]
+    nsfw_score = nsfw_confidences[nsfw_label] * 100  # Convert to percentage
 
-    if nsfw_label.lower() in ["porn", "hentai", "sexy"]:
-        reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}%)")
+    # Điều kiện nghiêm ngặt hơn
+    if nsfw_label.lower() in ["porn", "hentai", "sexy"] and nsfw_score > 55:
+        reasons.append(f"Ảnh nhạy cảm ({nsfw_score:.2f}% - {nsfw_label})")
 
     # === Violence Check ===
     violence_inputs = violence_processor(images=image, return_tensors="pt")
@@ -46,19 +47,19 @@ def check_image_safe(image: Image.Image, violence_threshold=0.5):
         violence_probs = torch.nn.functional.softmax(violence_logits, dim=1)[0]
 
     violence_labels = list(violence_model.config.id2label.values())
-    violence_confidences = {label: violence_probs[i].item() * 100 for i, label in enumerate(violence_labels)}
+    violence_confidences = {label: violence_probs[i].item() for i, label in enumerate(violence_labels)}
     violence_pred = violence_probs.argmax().item()
     violence_label = violence_labels[violence_pred]
-    violence_score = violence_confidences[violence_label]
+    violence_score = violence_confidences[violence_label] * 100  # Convert to percentage
 
-    if violence_label.lower() == "violent" and violence_score > violence_threshold * 100:
+    if violence_label.lower() == "violent" and violence_score > 50:
         reasons.append(f"Ảnh chứa bạo lực ({violence_score:.2f}%)")
 
     # === Tổng kết ===
     if reasons:
         result_text = f"🚨 Ảnh KHÔNG an toàn:\n- " + "\n- ".join(reasons)
     else:
-        result_text = f"✅ Ảnh an toàn \n - NSFW: ({nsfw_score:.2f}%)\n- Violence: ({violence_score:.2f}%)"
+        result_text = f"✅ Ảnh an toàn \n - NSFW: {nsfw_label} ({nsfw_score:.2f}%)\n- Violence: {violence_label} ({violence_score:.2f}%)"
 
     return result_text
 
