@@ -1,5 +1,4 @@
 import gradio as gr
-from app.safety_check import is_prompt_safe
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
 
