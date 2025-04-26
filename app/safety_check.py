@@ -7,6 +7,9 @@ from transformers import (
 from PIL import Image
 import torch
 
+import re
+from urllib.parse import urlparse, unquote
+
 # Load model phát hiện URL độc hại
 classifier = pipeline("zero-shot-classification")
 
@@ -105,38 +108,95 @@ def check_violence_image(image: Image.Image) -> str:
 
 # ===Hàm check url===
 def check_url(url: str):
-    # Kiểm tra định dạng URL cơ bản
-    if not url.startswith(('http://', 'https://')):
-        return "⚠️ Lỗi: URL phải bắt đầu bằng http:// hoặc https://"
-    
     try:
-        # Thêm các đặc trưng phát hiện URL đáng ngờ
-        suspicious_keywords = ['exe', 'download', 'free', 'gift', 'card']
-        is_suspicious = any(keyword in url.lower() for keyword in suspicious_keywords)
+        # Chuẩn hóa URL (decode các ký tự đặc biệt)
+        decoded_url = unquote(url)
+        parsed = urlparse(decoded_url)
         
-        # Áp dụng zero-shot classification
-        result = classifier(url, candidate_labels=["malicious", "safe"])
+        # Danh sách cảnh báo
+        warnings = []
         
-        # Lấy kết quả (đã sửa cách truy cập)
-        label = result["labels"][0]  # Nhãn có điểm cao nhất
-        score = result["scores"][0] * 100
+        # 1. Phát hiện IP thay vì domain (http://203.0.113.45/...)
+        if re.match(r'^https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', decoded_url):
+            warnings.append("🚨 Nguy hiểm: Truy cập trực tiếp bằng IP (thường dùng cho tấn công)")
         
-        # Kết hợp cảnh báo nếu có từ khóa đáng ngờ
-        warning = ""
-        if is_suspicious:
-            warning = "\n⚠️ Cảnh báo: URL chứa từ khóa đáng ngờ!"
+        # 2. Phát hiện file thực thi (gift-card.exe)
+        if re.search(r'\.(exe|msi|bat|js|jar|apk|dmg)(\?|$)', parsed.path.lower()):
+            warnings.append("🚨 Nguy hiểm: URL chứa file thực thi có thể độc hại")
         
-        explanation = f"Mô hình phân loại: {label} (độ tin cậy {score:.2f}%){warning}"
+        # 3. Phát hiện redirect độc hại (redirect?target=...)
+        if 'redirect' in parsed.path.lower() or 'url=' in parsed.query.lower():
+            warnings.append("⚠️ Cảnh báo: URL chứa chức năng redirect (có thể lừa đảo)")
         
-        if label.lower() == "malicious" or (score < 60 and is_suspicious):
-            return f"""🚨 URL KHÔNG an toàn:
-- Kết quả: {label}
-- {explanation}
-- Phân tích: URL có đặc điểm đáng ngờ"""
+        # 4. Phát hiện ký tự đặc biệt (/login%20%2F%00%3F%2F%2E%2E)
+        if re.search(r'%[0-9a-f]{2}|[\x00-\x1f\x7f]', url):
+            warnings.append("🚨 Nguy hiểm: URL chứa ký tự mã hóa đáng ngờ (có thể tấn công)")
+        
+        # 5. Phát hiện domain giả mạo (example.com@malicious-site.com)
+        if '@' in parsed.netloc:
+            warnings.append("🚨 Lừa đảo: URL chứa kỹ thuật giả mạo domain (user@fake-domain)")
+        
+        # 6. Phát hiện domain giả danh (secure.example-login.com)
+        deceptive_domains = ['login', 'secure', 'account', 'verify', 'update']
+        if any(keyword in parsed.netloc.lower() for keyword in deceptive_domains):
+            warnings.append("⚠️ Cảnh báo: Domain có dấu hiệu giả mạo dịch vụ đăng nhập")
+        
+        # 7. Kiểm tra giao thức không mã hóa
+        if parsed.scheme == 'http':
+            warnings.append("⚠️ Cảnh báo: Kết nối không mã hóa (HTTP)")
+        
+        # Kết hợp với AI classifier
+        ai_result = classifier(url, candidate_labels=["malicious", "safe"])
+        ai_label = ai_result["labels"][0]
+        ai_score = ai_result["scores"][0] * 100
+        
+        # Tạo báo cáo
+        report = {
+            "url": url,
+            "decoded_url": decoded_url,
+            "domain": parsed.netloc,
+            "path": parsed.path,
+            "warnings": warnings,
+            "ai_analysis": {
+                "label": ai_label,
+                "confidence": ai_score
+            }
+        }
+        
+        # Quyết định cuối cùng
+        if warnings or ai_label == "malicious":
+            return format_report(report, is_safe=False)
         else:
-            return f"""✅ URL an toàn:
-- Kết quả: {label}
-- {explanation}"""
+            return format_report(report, is_safe=True)
             
     except Exception as e:
-        return f"⚠️ Lỗi khi kiểm tra URL: {str(e)}"
+        return f"⚠️ Lỗi khi phân tích URL: {str(e)}"
+
+def format_report(report: dict, is_safe: bool):
+    """Định dạng báo cáo dễ đọc"""
+    warning_text = "\n".join(f"- {w}" for w in report["warnings"]) if report["warnings"] else "- Không phát hiện cảnh báo"
+    
+    if not is_safe:
+        return f"""🚨 URL KHÔNG AN TOÀN
+🔍 Phân tích chi tiết:
+• URL gốc: {report['url']}
+• Domain: {report['domain']}
+• Đường dẫn: {report['path']}
+
+📢 CẢNH BÁO:
+{warning_text}
+
+🤖 Phân tích AI:
+- Kết quả: {report['ai_analysis']['label']}
+- Độ tin cậy: {report['ai_analysis']['confidence']:.2f}%
+
+🛡️ Khuyến nghị: KHÔNG TRUY CẬP!"""
+    else:
+        return f"""✅ URL AN TOÀN
+🔍 Phân tích chi tiết:
+• URL gốc: {report['url']}
+• Domain: {report['domain']}
+
+🤖 Phân tích AI:
+- Kết quả: {report['ai_analysis']['label']}
+- Độ tin cậy: {report['ai_analysis']['confidence']:.2f}%"""
