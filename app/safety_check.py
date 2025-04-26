@@ -103,21 +103,40 @@ def check_violence_image(image: Image.Image) -> str:
 - Độ chính xác: {violence_score:.2f}%
 - Mô tả: {caption}"""
 
-# ===Hàm check url với lý do===
+# ===Hàm check url===
 def check_url(url: str):
-    # Áp dụng zero-shot classification để phân loại URL
-    result = classifier(url, candidate_labels=["malicious", "safe"])[0]
-    label = result["label"]
-    score = result["score"] * 100
-
-    # Lý do dựa trên độ tin cậy
-    explanation = f"Mô hình đã phân loại URL là {label} với độ tin cậy {score:.2f}%"
-
-    if label.lower() == "malicious":
-        return f"""🚨 URL KHÔNG an toàn:
+    # Kiểm tra định dạng URL cơ bản
+    if not url.startswith(('http://', 'https://')):
+        return "⚠️ Lỗi: URL phải bắt đầu bằng http:// hoặc https://"
+    
+    try:
+        # Thêm các đặc trưng phát hiện URL đáng ngờ
+        suspicious_keywords = ['exe', 'download', 'free', 'gift', 'card']
+        is_suspicious = any(keyword in url.lower() for keyword in suspicious_keywords)
+        
+        # Áp dụng zero-shot classification
+        result = classifier(url, candidate_labels=["malicious", "safe"])
+        
+        # Lấy kết quả (đã sửa cách truy cập)
+        label = result["labels"][0]  # Nhãn có điểm cao nhất
+        score = result["scores"][0] * 100
+        
+        # Kết hợp cảnh báo nếu có từ khóa đáng ngờ
+        warning = ""
+        if is_suspicious:
+            warning = "\n⚠️ Cảnh báo: URL chứa từ khóa đáng ngờ!"
+        
+        explanation = f"Mô hình phân loại: {label} (độ tin cậy {score:.2f}%){warning}"
+        
+        if label.lower() == "malicious" or (score < 60 and is_suspicious):
+            return f"""🚨 URL KHÔNG an toàn:
+- Kết quả: {label}
+- {explanation}
+- Phân tích: URL có đặc điểm đáng ngờ"""
+        else:
+            return f"""✅ URL an toàn:
 - Kết quả: {label}
 - {explanation}"""
-    else:
-        return f"""✅ URL an toàn:
-- Kết quả: {label}
-- {explanation}"""
+            
+    except Exception as e:
+        return f"⚠️ Lỗi khi kiểm tra URL: {str(e)}"
