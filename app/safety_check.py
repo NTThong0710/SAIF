@@ -2,10 +2,17 @@ from detoxify import Detoxify
 from transformers import (
     AutoProcessor, AutoModelForImageClassification,
     ViTForImageClassification, ViTFeatureExtractor,
-    BlipProcessor, BlipForConditionalGeneration
+    BlipProcessor, BlipForConditionalGeneration, pipeline
 )
 from PIL import Image
 import torch
+
+# Load model phát hiện URL độc hại
+url_classifier = pipeline(
+    "text-classification",
+    model="Eason918/malicious-url-detector",
+    truncation=True
+)
 
 # Load models
 detox_model = Detoxify('original')
@@ -18,7 +25,7 @@ violence_model_id = "jaranohaal/vit-base-violence-detection"
 violence_model = ViTForImageClassification.from_pretrained(violence_model_id)
 violence_processor = ViTFeatureExtractor.from_pretrained(violence_model_id)
 
-# Load BLIP for image captioning
+# Load BLIP cho caption của ảnh
 blip_processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
 blip_model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
 
@@ -99,3 +106,20 @@ def check_violence_image(image: Image.Image) -> str:
 - Loại: {violence_label}
 - Độ chính xác: {violence_score:.2f}%
 - Mô tả: {caption}"""
+
+# ===Hàm check url===
+def check_url(url: str):
+    result = url_classifier(url)[0]
+    label = result["label"]
+    score = result["score"] * 100
+
+    if label.lower() == "malicious":
+        return f"""🚨 URL KHÔNG an toàn:
+- Kết quả: {label}
+- Độ tin cậy: {score:.2f}%
+- URL: {url}"""
+    else:
+        return f"""✅ URL an toàn:
+- Kết quả: {label}
+- Độ tin cậy: {score:.2f}%
+- URL: {url}"""

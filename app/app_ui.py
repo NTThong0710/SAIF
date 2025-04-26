@@ -1,7 +1,7 @@
 import gradio as gr
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
-from app.safety_check import check_nsfw_image, check_violence_image, is_prompt_safe
+from app.safety_check import check_nsfw_image, check_violence_image, is_prompt_safe, check_url
 
 # === Kiểm duyệt Prompt ===
 def handle_prompt(prompt):
@@ -49,4 +49,14 @@ with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css=
 
         nsfw_button.click(fn=check_nsfw_image, inputs=image_input, outputs=nsfw_output)
         violence_button.click(fn=check_violence_image, inputs=image_input, outputs=violence_output)
+
+    with gr.Tab("🌐 Kiểm duyệt URL"):
+        with gr.Row():
+            with gr.Column(scale=1):
+                url_input = gr.Textbox(label="Nhập đường dẫn URL cần kiểm tra")
+            with gr.Column(scale=1):
+                url_output = gr.Textbox(label="Kết quả kiểm duyệt URL")
+                url_button = gr.Button("Kiểm tra URL", elem_classes="yellow-btn")
+        url_button.click(fn=check_url, inputs=url_input, outputs=url_output)
+
 
