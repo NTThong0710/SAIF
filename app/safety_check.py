@@ -49,7 +49,7 @@ def check_image_safe(image: Image.Image):
 
     if violence_label.lower() in ["Non-Violent"] and violence_score > 50:
         return f"🚨 Ảnh KHÔNG an toàn:\n- Ảnh chứa bạo lực ({violence_score:.2f}%)"
-    if violence_label.lower() in ["Violent"]
+    if violence_label.lower() in ["Violent"] and violence_score > 80:
         return f"🚨 Ảnh KHÔNG an toàn:\n- Ảnh chứa bạo lực ({violence_score:.2f}%)"
     
     return f"✅ Ảnh an toàn\n- NSFW: {nsfw_label} ({nsfw_score:.2f}%)\n- Violence: {violence_label} ({violence_score:.2f}%)"
