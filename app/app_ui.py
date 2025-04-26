@@ -34,10 +34,19 @@ with gr.Blocks(title="SAIFGuard - HỆ THỐNG KIỂM DUYỆT THÔNG MINH", css=
         prompt_button.click(handle_prompt, inputs=prompt_input, outputs=[prompt_status, prompt_output])
     
     with gr.Tab("🖼️ Kiểm duyệt Hình ảnh"):
+        gr.Markdown("### 📷 Tải ảnh và kiểm tra từng tiêu chí")
+
+        with gr.Row():
+            image_input = gr.Image(type="pil", label="Tải ảnh lên")
+
         with gr.Row():
             with gr.Column(scale=1):
-                image_input = gr.Image(type="pil", label="Tải ảnh lên")
+                nsfw_output = gr.Textbox(label="🔞 Kết quả kiểm duyệt ảnh nhạy cảm")
+                nsfw_button = gr.Button("Kiểm tra Ảnh Nhạy Cảm", elem_classes="yellow-btn")
             with gr.Column(scale=1):
-                image_output = gr.Textbox(label="Trạng thái kiểm duyệt hình ảnh")
-                image_button = gr.Button("Kiểm tra Hình ảnh", elem_classes="yellow-btn")
-        image_button.click(fn=check_image_safe, inputs=image_input, outputs=image_output)
+                violence_output = gr.Textbox(label="🧨 Kết quả kiểm duyệt ảnh bạo lực")
+                violence_button = gr.Button("Kiểm tra Ảnh Bạo Lực", elem_classes="yellow-btn")
+
+        nsfw_button.click(fn=check_nsfw_image, inputs=image_input, outputs=nsfw_output)
+        violence_button.click(fn=check_violence_image, inputs=image_input, outputs=violence_output)
+
