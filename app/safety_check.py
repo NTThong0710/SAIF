@@ -8,11 +8,7 @@ from PIL import Image
 import torch
 
 # Load model phát hiện URL độc hại
-url_classifier = pipeline(
-    "text-classification",
-    model="Eason918/malicious-url-detector",
-    truncation=True
-)
+classifier = pipeline("zero-shot-classification")
 
 # Load models
 detox_model = Detoxify('original')
@@ -107,19 +103,21 @@ def check_violence_image(image: Image.Image) -> str:
 - Độ chính xác: {violence_score:.2f}%
 - Mô tả: {caption}"""
 
-# ===Hàm check url===
+# ===Hàm check url với lý do===
 def check_url(url: str):
-    result = url_classifier(url)[0]
+    # Áp dụng zero-shot classification để phân loại URL
+    result = classifier(url, candidate_labels=["malicious", "safe"])[0]
     label = result["label"]
     score = result["score"] * 100
+
+    # Lý do dựa trên độ tin cậy
+    explanation = f"Mô hình đã phân loại URL là {label} với độ tin cậy {score:.2f}%"
 
     if label.lower() == "malicious":
         return f"""🚨 URL KHÔNG an toàn:
 - Kết quả: {label}
-- Độ tin cậy: {score:.2f}%
-- URL: {url}"""
+- {explanation}"""
     else:
         return f"""✅ URL an toàn:
 - Kết quả: {label}
-- Độ tin cậy: {score:.2f}%
-- URL: {url}"""
+- {explanation}"""
