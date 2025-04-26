@@ -1,7 +1,7 @@
 import gradio as gr
 from app.gen_ai import generate_response
 from app.mlops_logger import log_prompt
-from app.safety_check import check_image_safe, is_prompt_safe
+from app.safety_check import check_nsfw_image, check_violence_image, is_prompt_safe
 
 # === Kiểm duyệt Prompt ===
 def handle_prompt(prompt):
